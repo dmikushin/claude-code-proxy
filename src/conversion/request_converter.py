@@ -93,23 +93,24 @@ def convert_claude_to_openai(
     if claude_request.top_p is not None:
         openai_request["top_p"] = claude_request.top_p
 
-    # Convert tools
-    if claude_request.tools:
-        openai_tools = []
-        for tool in claude_request.tools:
-            if tool.name and tool.name.strip():
-                openai_tools.append(
-                    {
-                        "type": Constants.TOOL_FUNCTION,
-                        Constants.TOOL_FUNCTION: {
-                            "name": tool.name,
-                            "description": tool.description or "",
-                            "parameters": tool.input_schema,
-                        },
-                    }
-                )
-        if openai_tools:
-            openai_request["tools"] = openai_tools
+    # Convert tools - disable tools temporarily for Kimi API testing
+    # TODO: Re-enable tools after fixing Kimi API compatibility
+    # if claude_request.tools:
+    #     openai_tools = []
+    #     for tool in claude_request.tools[:100]:  # Limit to 100 tools (well under Kimi's 128 limit)
+    #         if tool.name and tool.name.strip():
+    #             openai_tools.append(
+    #                 {
+    #                     "type": Constants.TOOL_FUNCTION,
+    #                     Constants.TOOL_FUNCTION: {
+    #                         "name": tool.name,
+    #                         "description": tool.description or "",
+    #                         "parameters": tool.input_schema,
+    #                     },
+    #                 }
+    #             )
+    #     if openai_tools:
+    #         openai_request["tools"] = openai_tools
 
     # Convert tool choice
     if claude_request.tool_choice:

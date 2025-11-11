@@ -14,10 +14,10 @@ class OpenAIClient:
         self.base_url = base_url
         self.custom_headers = custom_headers or {}
         
-        # Prepare default headers
+        # Prepare default headers - use KimiCLI User-Agent for compatibility
         default_headers = {
             "Content-Type": "application/json",
-            "User-Agent": "claude-proxy/1.0.0"
+            "User-Agent": "KimiCLI/1.0.0"
         }
         
         # Merge custom headers with default headers
@@ -50,6 +50,10 @@ class OpenAIClient:
             self.active_requests[request_id] = cancel_event
         
         try:
+            # Add stream_options for Kimi API compatibility
+            if "stream_options" not in request:
+                request["stream_options"] = {"include_usage": True}
+
             # Create task that can be cancelled
             completion_task = asyncio.create_task(
                 self.client.chat.completions.create(**request)
