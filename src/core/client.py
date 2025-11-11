@@ -20,8 +20,24 @@ class OpenAIClient:
             "User-Agent": "claude-proxy/1.0.0"
         }
         
-        # Merge custom headers with default headers
-        all_headers = {**default_headers, **self.custom_headers}
+        # Case-insensitive merge of custom headers with default headers
+        all_headers = {**default_headers}
+        
+        # Create a mapping of lowercase header names to their original case
+        default_headers_lower = {name.lower(): name for name in default_headers.keys()}
+        
+        # Add custom headers with case-insensitive override
+        for custom_name, custom_value in self.custom_headers.items():
+            custom_name_lower = custom_name.lower()
+            
+            # If header exists in defaults (case-insensitive), replace it
+            if custom_name_lower in default_headers_lower:
+                original_name = default_headers_lower[custom_name_lower]
+                all_headers[original_name] = custom_value
+            else:
+                # For new headers, use proper HTTP capitalization
+                capitalized_name = '-'.join(word.capitalize() for word in custom_name.split('-'))
+                all_headers[capitalized_name] = custom_value
         
         # Detect if using Azure and instantiate the appropriate client
         if api_version:
