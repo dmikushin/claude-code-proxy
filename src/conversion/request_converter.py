@@ -142,7 +142,7 @@ def convert_claude_user_message(msg: ClaudeMessage) -> Dict[str, Any]:
     """Convert Claude user message to OpenAI format."""
     if msg.content is None:
         return {"role": Constants.ROLE_USER, "content": ""}
-    
+
     if isinstance(msg.content, str):
         return {"role": Constants.ROLE_USER, "content": msg.content}
 
@@ -181,7 +181,7 @@ def convert_claude_assistant_message(msg: ClaudeMessage) -> Dict[str, Any]:
 
     if msg.content is None:
         return {"role": Constants.ROLE_ASSISTANT, "content": None}
-    
+
     if isinstance(msg.content, str):
         return {"role": Constants.ROLE_ASSISTANT, "content": msg.content}
 
@@ -266,11 +266,8 @@ def sanitize_tool_name_for_kimi(name):
     """
     import re
 
-    # Replace double underscores with single ones for MCP tool names
-    sanitized = re.sub(r'__+', '_', name)
-
     # Remove invalid characters, keep only letters, numbers, underscores, and dashes
-    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', sanitized)
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', name)
 
     # Replace multiple consecutive underscores with single ones
     sanitized = re.sub(r'_+', '_', sanitized)
