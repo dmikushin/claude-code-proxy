@@ -14,10 +14,10 @@ class OpenAIClient:
         self.base_url = base_url
         self.custom_headers = custom_headers or {}
         
-        # Prepare default headers - use KimiCLI User-Agent for compatibility
+        # Prepare default headers
         default_headers = {
             "Content-Type": "application/json",
-            "User-Agent": "KimiCLI/1.0.0"
+            "User-Agent": "claude-proxy/1.0.0"
         }
         
         # Merge custom headers with default headers
