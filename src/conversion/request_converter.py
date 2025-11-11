@@ -11,11 +11,20 @@ logger = logging.getLogger(__name__)
 
 def convert_claude_to_openai(
     claude_request: ClaudeMessagesRequest, model_manager
-) -> Dict[str, Any]:
-    """Convert Claude API request format to OpenAI format."""
+) -> tuple[Dict[str, Any], Dict[str, str]]:
+    """Convert Claude API request format to OpenAI format.
+
+    Returns:
+        tuple: (openai_request, tool_name_mapping)
+        - openai_request: The converted OpenAI format request
+        - tool_name_mapping: Dict mapping sanitized tool names back to original names
+    """
 
     # Map model
     openai_model = model_manager.map_claude_model_to_openai(claude_request.model)
+
+    # Initialize tool name mapping for reverse lookups
+    tool_name_mapping = {}
 
     # Convert messages
     openai_messages = []
@@ -97,14 +106,19 @@ def convert_claude_to_openai(
     if claude_request.tools:
         if config.tooling_api == "kosong":
             # Use Kosong/Kimi tooling format
-            kimi_tools = convert_tools_to_kimi_format(claude_request.tools[:config.max_tools_limit])
+            kimi_tools, kimi_mapping = convert_tools_to_kimi_format_with_mapping(claude_request.tools[:config.max_tools_limit])
             if kimi_tools:
                 openai_request["tools"] = kimi_tools
+                tool_name_mapping.update(kimi_mapping)
         else:
             # Use standard OpenAI tooling format
             openai_tools = convert_tools_to_openai_format(claude_request.tools[:config.max_tools_limit])
             if openai_tools:
                 openai_request["tools"] = openai_tools
+                # For OpenAI format, no sanitization needed, so mapping is 1:1
+                for tool in claude_request.tools[:config.max_tools_limit]:
+                    if tool.name and tool.name.strip():
+                        tool_name_mapping[tool.name] = tool.name
 
     # Convert tool choice
     if claude_request.tool_choice:
@@ -121,7 +135,7 @@ def convert_claude_to_openai(
         else:
             openai_request["tool_choice"] = "auto"
 
-    return openai_request
+    return openai_request, tool_name_mapping
 
 
 def convert_claude_user_message(msg: ClaudeMessage) -> Dict[str, Any]:
@@ -275,9 +289,16 @@ def sanitize_tool_name_for_kimi(name):
     return sanitized
 
 
-def convert_tools_to_kimi_format(tools):
-    """Convert Claude tools to Kimi/Kosong format."""
+def convert_tools_to_kimi_format_with_mapping(tools):
+    """Convert Claude tools to Kimi/Kosong format and return name mapping.
+
+    Returns:
+        tuple: (kimi_tools, tool_name_mapping)
+        - kimi_tools: List of tools in Kimi format
+        - tool_name_mapping: Dict mapping sanitized names back to original names
+    """
     kimi_tools = []
+    tool_name_mapping = {}
 
     for tool in tools:
         if tool.name and tool.name.strip():
@@ -294,10 +315,15 @@ def convert_tools_to_kimi_format(tools):
                         },
                     }
                 )
+                # No sanitization for builtin functions
+                tool_name_mapping[tool.name] = tool.name
             else:
                 # Sanitize tool name for Kimi API compatibility
                 sanitized_name = sanitize_tool_name_for_kimi(tool.name)
                 logger.debug(f"Sanitized tool name: {tool.name} -> {sanitized_name}")
+
+                # Store mapping for reverse lookup
+                tool_name_mapping[sanitized_name] = tool.name
 
                 # Use standard OpenAI format for custom tools
                 kimi_tools.append(
@@ -312,6 +338,12 @@ def convert_tools_to_kimi_format(tools):
                 )
 
     logger.debug(f"Final kimi_tools: {json.dumps(kimi_tools, indent=2, ensure_ascii=False)}")
+    logger.debug(f"Tool name mapping: {tool_name_mapping}")
+    return kimi_tools, tool_name_mapping
+
+def convert_tools_to_kimi_format(tools):
+    """Convert Claude tools to Kimi/Kosong format. Legacy function for backward compatibility."""
+    kimi_tools, _ = convert_tools_to_kimi_format_with_mapping(tools)
     return kimi_tools
 
 

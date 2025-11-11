@@ -6,9 +6,15 @@ from src.models.claude import ClaudeMessagesRequest
 
 
 def convert_openai_to_claude_response(
-    openai_response: dict, original_request: ClaudeMessagesRequest
+    openai_response: dict, original_request: ClaudeMessagesRequest, tool_name_mapping: dict[str, str] = None
 ) -> dict:
-    """Convert OpenAI response to Claude format."""
+    """Convert OpenAI response to Claude format.
+
+    Args:
+        openai_response: The response from OpenAI API
+        original_request: The original Claude request
+        tool_name_mapping: Optional mapping from sanitized tool names back to original names
+    """
 
     # Extract response data
     choices = openai_response.get("choices", [])
@@ -36,11 +42,17 @@ def convert_openai_to_claude_response(
             except json.JSONDecodeError:
                 arguments = {"raw_arguments": function_data.get("arguments", "")}
 
+            # Get original tool name from mapping if available
+            sanitized_name = function_data.get("name", "")
+            original_name = sanitized_name
+            if tool_name_mapping and sanitized_name in tool_name_mapping:
+                original_name = tool_name_mapping[sanitized_name]
+
             content_blocks.append(
                 {
                     "type": Constants.CONTENT_TOOL_USE,
                     "id": tool_call.get("id", f"tool_{uuid.uuid4()}"),
-                    "name": function_data.get("name", ""),
+                    "name": original_name,
                     "input": arguments,
                 }
             )
@@ -79,7 +91,7 @@ def convert_openai_to_claude_response(
 
 
 async def convert_openai_streaming_to_claude(
-    openai_stream, original_request: ClaudeMessagesRequest, logger
+    openai_stream, original_request: ClaudeMessagesRequest, logger, tool_name_mapping: dict[str, str] = None
 ):
     """Convert OpenAI streaming response to Claude streaming format."""
 
@@ -150,7 +162,12 @@ async def convert_openai_streaming_to_claude(
                             # Update function name and start content block if we have both id and name
                             function_data = tc_delta.get(Constants.TOOL_FUNCTION, {})
                             if function_data.get("name"):
-                                tool_call["name"] = function_data["name"]
+                                sanitized_name = function_data["name"]
+                                # Convert sanitized name back to original if mapping exists
+                                original_name = sanitized_name
+                                if tool_name_mapping and sanitized_name in tool_name_mapping:
+                                    original_name = tool_name_mapping[sanitized_name]
+                                tool_call["name"] = original_name
                             
                             # Start content block when we have complete initial data
                             if (tool_call["id"] and tool_call["name"] and not tool_call["started"]):
@@ -220,8 +237,13 @@ async def convert_openai_streaming_to_claude_with_cancellation(
     http_request: Request,
     openai_client,
     request_id: str,
+    tool_name_mapping: dict[str, str] = None,
 ):
-    """Convert OpenAI streaming response to Claude streaming format with cancellation support."""
+    """Convert OpenAI streaming response to Claude streaming format with cancellation support.
+
+    Args:
+        tool_name_mapping: Optional mapping from sanitized tool names back to original names
+    """
 
     message_id = f"msg_{uuid.uuid4().hex[:24]}"
 
@@ -309,7 +331,12 @@ async def convert_openai_streaming_to_claude_with_cancellation(
                             # Update function name and start content block if we have both id and name
                             function_data = tc_delta.get(Constants.TOOL_FUNCTION, {})
                             if function_data.get("name"):
-                                tool_call["name"] = function_data["name"]
+                                sanitized_name = function_data["name"]
+                                # Convert sanitized name back to original if mapping exists
+                                original_name = sanitized_name
+                                if tool_name_mapping and sanitized_name in tool_name_mapping:
+                                    original_name = tool_name_mapping[sanitized_name]
+                                tool_call["name"] = original_name
                             
                             # Start content block when we have complete initial data
                             if (tool_call["id"] and tool_call["name"] and not tool_call["started"]):

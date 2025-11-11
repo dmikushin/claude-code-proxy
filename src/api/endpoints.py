@@ -61,7 +61,7 @@ async def create_message(request: ClaudeMessagesRequest, http_request: Request, 
         request_id = str(uuid.uuid4())
 
         # Convert Claude request to OpenAI format
-        openai_request = convert_claude_to_openai(request, model_manager)
+        openai_request, tool_name_mapping = convert_claude_to_openai(request, model_manager)
 
         # Check if client disconnected before processing
         if await http_request.is_disconnected():
@@ -81,6 +81,7 @@ async def create_message(request: ClaudeMessagesRequest, http_request: Request, 
                         http_request,
                         openai_client,
                         request_id,
+                        tool_name_mapping,
                     ),
                     media_type="text/event-stream",
                     headers={
@@ -108,7 +109,7 @@ async def create_message(request: ClaudeMessagesRequest, http_request: Request, 
                 openai_request, request_id
             )
             claude_response = convert_openai_to_claude_response(
-                openai_response, request
+                openai_response, request, tool_name_mapping
             )
             return claude_response
     except HTTPException:
