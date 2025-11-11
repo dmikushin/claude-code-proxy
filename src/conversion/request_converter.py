@@ -93,24 +93,18 @@ def convert_claude_to_openai(
     if claude_request.top_p is not None:
         openai_request["top_p"] = claude_request.top_p
 
-    # Convert tools - disable tools temporarily for Kimi API testing
-    # TODO: Re-enable tools after fixing Kimi API compatibility
-    # if claude_request.tools:
-    #     openai_tools = []
-    #     for tool in claude_request.tools[:100]:  # Limit to 100 tools (well under Kimi's 128 limit)
-    #         if tool.name and tool.name.strip():
-    #             openai_tools.append(
-    #                 {
-    #                     "type": Constants.TOOL_FUNCTION,
-    #                     Constants.TOOL_FUNCTION: {
-    #                         "name": tool.name,
-    #                         "description": tool.description or "",
-    #                         "parameters": tool.input_schema,
-    #                     },
-    #                 }
-    #             )
-    #     if openai_tools:
-    #         openai_request["tools"] = openai_tools
+    # Convert tools based on configuration
+    if claude_request.tools:
+        if config.tooling_api == "kosong":
+            # Use Kosong/Kimi tooling format
+            kimi_tools = convert_tools_to_kimi_format(claude_request.tools[:config.max_tools_limit])
+            if kimi_tools:
+                openai_request["tools"] = kimi_tools
+        else:
+            # Use standard OpenAI tooling format
+            openai_tools = convert_tools_to_openai_format(claude_request.tools[:config.max_tools_limit])
+            if openai_tools:
+                openai_request["tools"] = openai_tools
 
     # Convert tool choice
     if claude_request.tool_choice:
@@ -181,12 +175,17 @@ def convert_claude_assistant_message(msg: ClaudeMessage) -> Dict[str, Any]:
         if block.type == Constants.CONTENT_TEXT:
             text_parts.append(block.text)
         elif block.type == Constants.CONTENT_TOOL_USE:
+            # Sanitize tool name if using Kimi tooling API
+            tool_name = block.name
+            if config.tooling_api == "kosong":
+                tool_name = sanitize_tool_name_for_kimi(block.name)
+
             tool_calls.append(
                 {
                     "id": block.id,
                     "type": Constants.TOOL_FUNCTION,
                     Constants.TOOL_FUNCTION: {
-                        "name": block.name,
+                        "name": tool_name,
                         "arguments": json.dumps(block.input, ensure_ascii=False),
                     },
                 }
@@ -224,6 +223,96 @@ def convert_claude_tool_results(msg: ClaudeMessage) -> List[Dict[str, Any]]:
                 )
 
     return tool_messages
+
+
+def convert_tools_to_openai_format(tools):
+    """Convert Claude tools to OpenAI format."""
+    openai_tools = []
+    for tool in tools:
+        if tool.name and tool.name.strip():
+            openai_tools.append(
+                {
+                    "type": Constants.TOOL_FUNCTION,
+                    Constants.TOOL_FUNCTION: {
+                        "name": tool.name,
+                        "description": tool.description or "",
+                        "parameters": tool.input_schema,
+                    },
+                }
+            )
+    return openai_tools
+
+
+def sanitize_tool_name_for_kimi(name):
+    """Sanitize tool name for Kimi API requirements.
+
+    Kimi requires tool names to:
+    - Start with a letter
+    - Contain only letters, numbers, underscores, and dashes
+    """
+    import re
+
+    # Replace double underscores with single ones for MCP tool names
+    sanitized = re.sub(r'__+', '_', name)
+
+    # Remove invalid characters, keep only letters, numbers, underscores, and dashes
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', sanitized)
+
+    # Replace multiple consecutive underscores with single ones
+    sanitized = re.sub(r'_+', '_', sanitized)
+
+    # Remove leading/trailing underscores
+    sanitized = sanitized.strip('_')
+
+    # Ensure it starts with a letter
+    if sanitized and not sanitized[0].isalpha():
+        sanitized = 'tool_' + sanitized
+
+    # Ensure it's not empty
+    if not sanitized:
+        sanitized = 'unknown_tool'
+
+    return sanitized
+
+
+def convert_tools_to_kimi_format(tools):
+    """Convert Claude tools to Kimi/Kosong format."""
+    kimi_tools = []
+
+    for tool in tools:
+        if tool.name and tool.name.strip():
+            logger.debug(f"Processing tool: {tool.name}")
+
+            # Check if this is a Kimi builtin function (starts with $)
+            if tool.name.startswith("$"):
+                kimi_tools.append(
+                    {
+                        "type": "builtin_function",
+                        "function": {
+                            "name": tool.name,
+                            # Builtin functions don't need description and parameters
+                        },
+                    }
+                )
+            else:
+                # Sanitize tool name for Kimi API compatibility
+                sanitized_name = sanitize_tool_name_for_kimi(tool.name)
+                logger.debug(f"Sanitized tool name: {tool.name} -> {sanitized_name}")
+
+                # Use standard OpenAI format for custom tools
+                kimi_tools.append(
+                    {
+                        "type": Constants.TOOL_FUNCTION,
+                        Constants.TOOL_FUNCTION: {
+                            "name": sanitized_name,
+                            "description": tool.description or "",
+                            "parameters": tool.input_schema,
+                        },
+                    }
+                )
+
+    logger.debug(f"Final kimi_tools: {json.dumps(kimi_tools, indent=2, ensure_ascii=False)}")
+    return kimi_tools
 
 
 def parse_tool_result_content(content):

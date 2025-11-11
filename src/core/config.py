@@ -29,6 +29,10 @@ class Config:
         self.big_model = os.environ.get("BIG_MODEL", "gpt-4o")
         self.middle_model = os.environ.get("MIDDLE_MODEL", self.big_model)
         self.small_model = os.environ.get("SMALL_MODEL", "gpt-4o-mini")
+
+        # Tooling API settings
+        self.tooling_api = os.environ.get("TOOLING_API", "openai").lower()  # "openai" or "kosong"
+        self.max_tools_limit = int(os.environ.get("MAX_TOOLS_LIMIT", "100"))  # Maximum tools to send to API
         
     def validate_api_key(self):
         """Basic API key validation"""
