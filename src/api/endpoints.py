@@ -302,16 +302,16 @@ async def authorize_endpoint(request: Request):
 def _build_redirect_url(redirect_uri: str, code: str, state: str) -> str:
     # Parse the redirect URI
     parsed = urlparse(redirect_uri)
-    # Parse existing query parameters
-    query_params = dict(parse_qsl(parsed.query))
-    # Add the new authorization code and state
-    query_params['authorization_code'] = code
+    # Parameters to be added to the fragment
+    fragment_params = {'authorization_code': code}
     if state:
-        query_params['state'] = state
-    # Construct new query string
-    new_query = urlencode(query_params)
-    # Build new URL
-    new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+        fragment_params['state'] = state
+    
+    # Construct the fragment string
+    fragment_string = urlencode(fragment_params)
+    
+    # Build new URL with the fragment
+    new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, '', fragment_string))
     return new_url
 
 @router.get("/oauth/redirect")
