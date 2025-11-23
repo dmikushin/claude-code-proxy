@@ -276,28 +276,24 @@ tokens = {}
 @router.get("/oauth/authorize")
 async def authorize_endpoint(request: Request):
     # Extract query parameters
-    code_str = request.query_params.get('code')
     client_id = request.query_params.get('client_id')
     redirect_uri = request.query_params.get('redirect_uri')
     state = request.query_params.get('state')
-    # Optional: client_secret is not required for this flow
-    # Validate client_id
-    # if not client_id or client_id not in clients:
-    #     return {"error": "Client ID is missing or invalid"}
-    # Validate code flag
-    # if not code_str or code_str.lower() not in ('true', '1', 'yes'):
-    #    return {"error": "Authorization code is missing"}
-    # Validate redirect_uri
-    if not redirect_uri:
-        return {"error": "Redirect URI missing"}
+
     # Generate auth code
     auth_code = secrets.token_urlsafe(16)
+
     # Store auth code mapping
     user = clients[client_id]['user']
     auth_codes[auth_code] = {"user": user, "expires_at": time.time() + 300, "redirect_uri": redirect_uri, "state": state}
-    # Build redirect URL
-    redirect_url = _build_redirect_url(redirect_uri, auth_code, state)
-    return {"redirect_url": redirect_url}
+
+    # Combine code and state as per user's requirement
+    if not state:
+        raise HTTPException(status_code=400, detail="State parameter is missing")
+    
+    combined_code = f"{auth_code}#{state}"
+    
+    return {"authorization_code": combined_code}
 
 def _build_redirect_url(redirect_uri: str, code: str, state: str) -> str:
     # Parse the redirect URI
