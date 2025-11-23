@@ -282,6 +282,7 @@ async def authorize_endpoint(request: Request):
 
     # Generate auth code
     auth_code = secrets.token_urlsafe(16)
+    logger.info(f"Generated auth_code: {auth_code}")
 
     # Store auth code mapping
     user = clients[client_id]['user']
