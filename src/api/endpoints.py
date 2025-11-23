@@ -339,20 +339,40 @@ async def redirect_endpoint(request: Request):
 
 from jose import jwt
 
-@router.post("/v1/oauth/token")
-async def token_endpoint(client_id: str = Query(None), client_secret: str = Query(None), grant_type: str = Query(None), authorization_code: str = Query(None)):
-    logger.info(f"Received token request: client_id={client_id}, client_secret={client_secret}, grant_type={grant_type}, authorization_code={authorization_code}")
-    # For this mock server, we'll perform minimal validation.
-    # In a real-world scenario, you'd have robust validation.
-    if not all([client_id, client_secret, grant_type, authorization_code]):
-        raise HTTPException(status_code=400, detail="Missing required parameters")
+from pydantic import BaseModel
 
-    # Check grant_type
-    if grant_type != "authorization_code":
+class TokenRequest(BaseModel):
+    grant_type: str
+    code: str
+    redirect_uri: str
+    client_id: str
+    code_verifier: str
+    state: str
+
+@router.post("/v1/oauth/token")
+async def token_endpoint(token_request: TokenRequest):
+    logger.info(f"Received token request: {token_request.dict()}")
+    
+    # The client sends a 'code' but my previous change introduced 'authorization_code'
+    # The user also mentioned that the authorization_code is combined from code and state
+    # But in the token request, the client sends 'code' and 'state' separately.
+    # The previous logic for authorization_code was for the /authorize endpoint.
+    # For the /token endpoint, the client sends the 'code' it received.
+    # The server should validate this code.
+    
+    # Let's get the original auth_code from the combined code if it exists
+    auth_code_parts = token_request.code.split('#')
+    auth_code = auth_code_parts[0]
+
+    if auth_code not in auth_codes:
+        raise HTTPException(status_code=400, detail="Invalid authorization code")
+
+    # Minimal validation for this mock server
+    if token_request.grant_type != "authorization_code":
         raise HTTPException(status_code=400, detail="Unsupported grant type")
 
-    # Retrieve user (mock user)
-    user = clients[client_id]['user'] if client_id in clients else 'default_user'
+    # Retrieve user
+    user = auth_codes[auth_code]["user"]
 
     # Create JWT payload
     expires_in = 3600  # Token expires in 1 hour
@@ -366,8 +386,11 @@ async def token_endpoint(client_id: str = Query(None), client_secret: str = Quer
     # Encode the token
     encoded_jwt = jwt.encode(to_encode, config.jwt_secret_key, algorithm=config.jwt_algorithm)
 
-    # Store token info if needed (optional, as JWT is self-contained)
+    # Store token info if needed
     tokens[encoded_jwt] = {"user": user, "expires_at": to_encode['exp']}
+    
+    # Clean up the used auth code
+    del auth_codes[auth_code]
 
     return {
         "access_token": encoded_jwt,
