@@ -260,3 +260,101 @@ async def hello_head():
 async def hello_oauth_head():
     return Response(status_code=200)
 
+import uuid
+import secrets
+import time
+from urllib.parse import urlparse, urlunparse, urlencode, parse_qsl
+from fastapi import FastAPI, HTTPException, Query, Request
+from starlette.responses import RedirectResponse
+
+clients = {
+    "client1": {"client_id": "client1", "user": "alice"},
+    "client2": {"client_id": "client2", "user": "bob"}
+}
+
+auth_codes = {}
+tokens = {}
+
+@router.get("/oauth/authorize")
+async def authorize_endpoint(request: Request):
+    # Extract query parameters
+    code_str = request.query_params.get('code')
+    client_id = request.query_params.get('client_id')
+    redirect_uri = request.query_params.get('redirect_uri')
+    state = request.query_params.get('state')
+    # Optional: client_secret is not required for this flow
+    # Validate client_id
+    if not client_id or client_id not in clients:
+        return {"error": "Client ID is missing or invalid"}
+    # Validate code flag
+    if not code_str or code_str.lower() not in ('true', '1', 'yes'):
+        return {"error": "Authorization code is missing"}
+    # Validate redirect_uri
+    if not redirect_uri:
+        return {"error": "Redirect URI missing"}
+    # Generate auth code
+    auth_code = secrets.token_urlsafe(16)
+    # Store auth code mapping
+    user = clients[client_id]['user']
+    auth_codes[auth_code] = {"user": user, "expires_at": time.time() + 300, "redirect_uri": redirect_uri, "state": state}
+    # Build redirect URL
+    redirect_url = _build_redirect_url(redirect_uri, auth_code, state)
+    return {"redirect_url": redirect_url}
+
+def _build_redirect_url(redirect_uri: str, code: str, state: str) -> str:
+    # Parse the redirect URI
+    parsed = urlparse(redirect_uri)
+    # Parse existing query parameters
+    query_params = dict(parse_qsl(parsed.query))
+    # Add the new authorization code and state
+    query_params['authorization_code'] = code
+    if state:
+        query_params['state'] = state
+    # Construct new query string
+    new_query = urlencode(query_params)
+    # Build new URL
+    new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+    return new_url
+
+@router.get("/oauth/redirect")
+async def redirect_endpoint(request: Request):
+    # Extract client_id and authorization code
+    client_id = request.query_params.get('client_id')
+    if not client_id or client_id not in clients:
+        return {"error": "Client ID is missing or invalid"}
+    authorization_code = request.query_params.get('authorization_code')
+    if not authorization_code:
+        return {"error": "Authorization code is missing"}
+    # Verify auth code
+    if authorization_code not in auth_codes:
+        return {"error": "Invalid authorization code"}
+    # Check expiration
+    if time.time() > auth_codes[authorization_code]["expires_at"]:
+        del auth_codes[authorization_code]
+        return {"error": "Authorization code has expired"}
+    # Generate token
+    token = secrets.token_urlsafe(16)
+    user = auth_codes[authorization_code]["user"]
+    # Store token
+    tokens[token] = {"user": user, "expires_at": time.time() + 3600}
+    # Build final redirect URL
+    redirect_uri = auth_codes[authorization_code]["redirect_uri"]
+    state = auth_codes[authorization_code]["state"]
+    final_url = _build_redirect_url(redirect_uri, token, state)
+    return RedirectResponse(url=final_url)
+
+@router.post("/oauth/token")
+async def token_endpoint(client_id: str = Query(...), client_secret: str = Query(...), grant_type: str = Query(...), authorization_code: str = Query(...)):
+    # Validate client credentials
+    if client_id not in clients or clients[client_id]["client_secret"] != client_secret:
+        raise HTTPException(status_code=401, detail="Invalid client credentials")
+    # Check grant_type
+    if grant_type != "authorization_code":
+        raise HTTPException(status_code=400, detail="Unsupported grant type")
+    # Retrieve user
+    user = clients[client_id]["user"]
+    # Return access token
+    token = secrets.token_urlsafe(16)
+    tokens[token] = {"user": user, "expires_at": time.time() + 3600}
+    return {"token": token}
+
