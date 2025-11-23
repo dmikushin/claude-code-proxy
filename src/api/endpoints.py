@@ -341,6 +341,7 @@ from jose import jwt
 
 @router.post("/v1/oauth/token")
 async def token_endpoint(client_id: str = Query(None), client_secret: str = Query(None), grant_type: str = Query(None), authorization_code: str = Query(None)):
+    logger.info(f"Received token request: client_id={client_id}, client_secret={client_secret}, grant_type={grant_type}, authorization_code={authorization_code}")
     # For this mock server, we'll perform minimal validation.
     # In a real-world scenario, you'd have robust validation.
     if not all([client_id, client_secret, grant_type, authorization_code]):

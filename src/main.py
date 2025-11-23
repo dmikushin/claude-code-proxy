@@ -8,6 +8,25 @@ app = FastAPI(title="Claude-to-OpenAI API Proxy", version="1.0.0")
 
 app.include_router(api_router)
 
+from fastapi import Request
+import json
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    if "/token" in request.url.path:
+        body = await request.body()
+        print("Request Headers:", dict(request.headers))
+        try:
+            # Try to parse as JSON to pretty-print
+            body_json = json.loads(body)
+            print("Request Body:", json.dumps(body_json, indent=2))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # If not JSON or not decodable, print as is
+            print("Request Body:", body)
+    response = await call_next(request)
+    return response
+
+
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--help":
