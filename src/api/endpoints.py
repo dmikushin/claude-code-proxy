@@ -232,3 +232,31 @@ async def root():
             "test_connection": "/test-connection",
         },
     }
+
+@router.get("/api/hello")
+@router.get("/v1/oauth/hello")
+async def hello():
+    """
+    A tiny health‑check endpoint that returns a JSON payload
+    indicating the service is running.  It is intentionally
+    lightweight and does *not* require an API key.
+    """
+    return {"message": "hello"}
+
+from fastapi import Response
+
+# ------------------------------------------------------------------
+#  HEAD /api/hello
+# ------------------------------------------------------------------
+@router.head("/api/hello")
+async def hello_head():
+    # Return an empty body – just the status/headers
+    return Response(status_code=200)
+
+# ------------------------------------------------------------------
+#  HEAD /v1/oauth/hello
+# ------------------------------------------------------------------
+@router.head("/v1/oauth/hello")
+async def hello_oauth_head():
+    return Response(status_code=200)
+
