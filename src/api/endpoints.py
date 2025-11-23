@@ -350,6 +350,48 @@ class TokenRequest(BaseModel):
     code_verifier: str
     state: str
 
+from jose import jwt, JWTError
+
+async def get_current_user(authorization: Optional[str] = Header(None)):
+    if authorization is None:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    token = authorization.replace("Bearer ", "")
+    
+    try:
+        payload = jwt.decode(token, config.jwt_secret_key, algorithms=[config.jwt_algorithm])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+@router.get("/api/oauth/profile")
+async def get_profile(current_user: str = Depends(get_current_user)):
+    return {
+        "uuid": str(uuid.uuid4()),
+        "email": f"{current_user}@example.com",
+        "username": current_user,
+        "first_name": "Test",
+        "last_name": "User",
+        "picture_url": "https://example.com/avatar.png",
+        "is_active": True,
+        "is_staff": False,
+        "is_superuser": False,
+        "last_login": "2025-11-24T00:00:00Z",
+        "date_joined": "2025-01-01T00:00:00Z",
+    }
+
+@router.get("/api/oauth/claude_cli/roles")
+async def get_roles(current_user: str = Depends(get_current_user)):
+    return {
+        "roles": [
+            {"role": "user", "is_default": True},
+            {"role": "admin", "is_default": False},
+        ]
+    }
+
 @router.post("/v1/oauth/token")
 async def token_endpoint(token_request: TokenRequest):
     logger.info(f"Received token request: {token_request.dict()}")
