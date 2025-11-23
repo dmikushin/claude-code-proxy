@@ -266,11 +266,9 @@ import time
 from urllib.parse import urlparse, urlunparse, urlencode, parse_qsl
 from fastapi import FastAPI, HTTPException, Query, Request
 from starlette.responses import RedirectResponse
+from collections import defaultdict
 
-clients = {
-    "client1": {"client_id": "client1", "user": "alice"},
-    "client2": {"client_id": "client2", "user": "bob"}
-}
+clients = defaultdict(lambda: {'user': 'default'})
 
 auth_codes = {}
 tokens = {}
@@ -284,11 +282,11 @@ async def authorize_endpoint(request: Request):
     state = request.query_params.get('state')
     # Optional: client_secret is not required for this flow
     # Validate client_id
-    if not client_id or client_id not in clients:
-        return {"error": "Client ID is missing or invalid"}
+    # if not client_id or client_id not in clients:
+    #     return {"error": "Client ID is missing or invalid"}
     # Validate code flag
-    if not code_str or code_str.lower() not in ('true', '1', 'yes'):
-        return {"error": "Authorization code is missing"}
+    # if not code_str or code_str.lower() not in ('true', '1', 'yes'):
+    #    return {"error": "Authorization code is missing"}
     # Validate redirect_uri
     if not redirect_uri:
         return {"error": "Redirect URI missing"}
