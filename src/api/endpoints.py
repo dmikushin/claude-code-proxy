@@ -341,18 +341,40 @@ async def redirect_endpoint(request: Request):
     final_url = _build_redirect_url(redirect_uri, token, state)
     return RedirectResponse(url=final_url)
 
+from jose import jwt
+
 @router.post("/oauth/token")
-async def token_endpoint(client_id: str = Query(...), client_secret: str = Query(...), grant_type: str = Query(...), authorization_code: str = Query(...)):
-    # Validate client credentials
-    if client_id not in clients or clients[client_id]["client_secret"] != client_secret:
-        raise HTTPException(status_code=401, detail="Invalid client credentials")
+async def token_endpoint(client_id: str = Query(None), client_secret: str = Query(None), grant_type: str = Query(None), authorization_code: str = Query(None)):
+    # For this mock server, we'll perform minimal validation.
+    # In a real-world scenario, you'd have robust validation.
+    if not all([client_id, client_secret, grant_type, authorization_code]):
+        raise HTTPException(status_code=400, detail="Missing required parameters")
+
     # Check grant_type
     if grant_type != "authorization_code":
         raise HTTPException(status_code=400, detail="Unsupported grant type")
-    # Retrieve user
-    user = clients[client_id]["user"]
-    # Return access token
-    token = secrets.token_urlsafe(16)
-    tokens[token] = {"user": user, "expires_at": time.time() + 3600}
-    return {"token": token}
+
+    # Retrieve user (mock user)
+    user = clients[client_id]['user'] if client_id in clients else 'default_user'
+
+    # Create JWT payload
+    expires_in = 3600  # Token expires in 1 hour
+    to_encode = {
+        "sub": user,
+        "iat": int(time.time()),
+        "exp": int(time.time()) + expires_in,
+        "jti": str(uuid.uuid4())  # Unique token identifier
+    }
+
+    # Encode the token
+    encoded_jwt = jwt.encode(to_encode, config.jwt_secret_key, algorithm=config.jwt_algorithm)
+
+    # Store token info if needed (optional, as JWT is self-contained)
+    tokens[encoded_jwt] = {"user": user, "expires_at": to_encode['exp']}
+
+    return {
+        "access_token": encoded_jwt,
+        "token_type": "bearer",
+        "expires_in": expires_in,
+    }
 

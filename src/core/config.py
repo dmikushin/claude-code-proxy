@@ -29,6 +29,10 @@ class Config:
         self.big_model = os.environ.get("BIG_MODEL", "gpt-4o")
         self.middle_model = os.environ.get("MIDDLE_MODEL", self.big_model)
         self.small_model = os.environ.get("SMALL_MODEL", "gpt-4o-mini")
+
+        # JWT settings
+        self.jwt_secret_key = os.environ.get("JWT_SECRET_KEY", "a_very_secret_key")
+        self.jwt_algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
         
     def validate_api_key(self):
         """Basic API key validation"""
