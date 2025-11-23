@@ -339,7 +339,7 @@ async def redirect_endpoint(request: Request):
 
 from jose import jwt
 
-@router.post("/oauth/token")
+@router.post("/v1/oauth/token")
 async def token_endpoint(client_id: str = Query(None), client_secret: str = Query(None), grant_type: str = Query(None), authorization_code: str = Query(None)):
     # For this mock server, we'll perform minimal validation.
     # In a real-world scenario, you'd have robust validation.
